@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script>
+      // Polyfill/setter patch for environments where window.fetch has only a getter
+      (function() {
+        try {
+          var _f = window.fetch;
+          var descriptor = {
+            get: function() { return _f; },
+            set: function(val) { _f = val; },
+            configurable: true,
+            enumerable: true
+          };
+          try { Object.defineProperty(window, 'fetch', descriptor); } catch(e) {}
+          if (typeof Window !== 'undefined' && Window.prototype) {
+            try { Object.defineProperty(Window.prototype, 'fetch', descriptor); } catch(e) {}
+          }
+        } catch (err) {}
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AuraCloset - Digital Wardrobe AI</title>
+    <meta name="description" content="Smart AI-powered digital wardrobe organizer with instant clothing photo tagging, personalized weather & occasion outfit recommendations, cost-per-wear analytics, and digital styling." />
+    <meta property="og:title" content="AuraCloset - Digital Wardrobe AI" />
+    <meta property="og:description" content="Smart AI-powered digital wardrobe organizer with instant clothing photo tagging, personalized weather & occasion outfit recommendations, cost-per-wear analytics, and digital styling." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "AuraCloset - Digital Wardrobe AI",
+  "description": "Smart AI-powered digital wardrobe organizer with instant clothing photo tagging, personalized weather & occasion outfit recommendations, cost-per-wear analytics, and digital styling.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

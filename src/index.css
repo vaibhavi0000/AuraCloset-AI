@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f7f9f3;
+    color: #1a2515;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+/* Glassmorphism styling matching the inspirational reference */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 12px 36px -6px rgba(45, 65, 30, 0.08), 0 4px 12px -2px rgba(45, 65, 30, 0.04);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 8px 24px -4px rgba(45, 65, 30, 0.08);
+}
+
+.glass-lime {
+  background: rgba(212, 248, 77, 0.22);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(212, 248, 77, 0.45);
+}
+
+.glass-dark {
+  background: rgba(28, 40, 20, 0.88);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f5f8f0;
+}
+
+/* AI Aura Glow effect inspired by the center reference screen */
+@keyframes auraPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #d4f84d, 0 0 25px 6px rgba(212, 248, 77, 0.5), inset 0 0 15px rgba(212, 248, 77, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #b8ef28, 0 0 35px 12px rgba(184, 239, 40, 0.75), inset 0 0 25px rgba(184, 239, 40, 0.4);
+  }
+}
+
+.aura-scan-border {
+  animation: auraPulse 2.4s infinite ease-in-out;
+}
+
+/* Smooth custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(70, 95, 45, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(70, 95, 45, 0.35);
+}
