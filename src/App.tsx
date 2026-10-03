@@ -19,7 +19,7 @@ import {
   LiveWeatherData,
 } from './types/wardrobe';
 import { triggerConfetti } from './utils/helpers';
-import { requestGpsLiveWeather, fetchLiveWeatherByCity } from './utils/weather';
+import { requestGpsLiveWeather, fetchLiveWeatherByCity, getCachedWeather } from './utils/weather';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('today');
@@ -35,12 +35,16 @@ export default function App() {
   const [outfitLogs, setOutfitLogs] = useState<OutfitLog[]>([]);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
 
-  // Live real-time weather
-  const [weather, setWeather] = useState<LiveWeatherData>({
-    temp: 21,
-    condition: 'Partly Cloudy',
-    city: 'New York',
-    isLiveGps: false,
+  // Live real-time weather (instantly initialized from cache for 0ms delay on mobile)
+  const [weather, setWeather] = useState<LiveWeatherData>(() => {
+    return (
+      getCachedWeather() || {
+        temp: 21,
+        condition: 'Partly Cloudy',
+        city: 'Current Location',
+        isLiveGps: false,
+      }
+    );
   });
 
   // Modals state
@@ -60,10 +64,25 @@ export default function App() {
     };
   }, [user.id]);
 
-  // Load user data and items
+  // Load user data and items via single-roundtrip bootstrap (instant mobile load)
   const loadUserData = useCallback(async () => {
     try {
       const headers = getAuthHeaders();
+      const bootRes = await fetch('/api/bootstrap', { headers });
+      if (bootRes.ok) {
+        const bootData = await bootRes.json();
+        if (bootData.success) {
+          if (bootData.user) {
+            setUser(bootData.user);
+          }
+          setItems(Array.isArray(bootData.items) ? bootData.items : []);
+          setOutfitLogs(Array.isArray(bootData.outfitLogs) ? bootData.outfitLogs : []);
+          setSearchHistory(Array.isArray(bootData.searchHistory) ? bootData.searchHistory : []);
+          return;
+        }
+      }
+
+      // Fallback if bootstrap endpoint is unreachable
       const [userRes, itemsRes, logsRes, searchRes] = await Promise.all([
         fetch('/api/auth/me', { headers }),
         fetch('/api/wardrobe', { headers }),
@@ -97,21 +116,25 @@ export default function App() {
     }
   }, [getAuthHeaders]);
 
-  // Initial load & real-time GPS weather initialization
+  // Initial load & non-blocking real-time GPS weather background sync
   useEffect(() => {
     loadUserData();
 
-    // Attempt live GPS weather
+    // Silently detect and update live weather in background without blocking UI
     requestGpsLiveWeather()
       .then((liveWeather) => {
         setWeather(liveWeather);
-        setUser((prev) => ({ ...prev, city: liveWeather.city }));
+        if (liveWeather.city && liveWeather.city !== 'Current Location') {
+          setUser((prev) => ({ ...prev, city: liveWeather.city }));
+        }
       })
       .catch(() => {
-        // Fallback to city live weather
-        fetchLiveWeatherByCity('New York')
-          .then((cityWeather) => setWeather(cityWeather))
-          .catch(() => {});
+        // Fallback to city live weather if needed
+        if (user.city && user.city !== 'Current Location') {
+          fetchLiveWeatherByCity(user.city)
+            .then((cityWeather) => setWeather(cityWeather))
+            .catch(() => {});
+        }
       });
   }, []);
 
@@ -333,11 +356,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen relative overflow-hidden bg-[#f7f9f3] text-[#1a2515] pb-[max(1rem,env(safe-area-inset-bottom))]">
-      {/* Ambient background blur spots */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full bg-[#d8f47c]/25 blur-[120px]"></div>
-        <div className="absolute -top-20 -right-20 w-[550px] h-[550px] rounded-full bg-[#fdd9ce]/30 blur-[130px]"></div>
-        <div className="absolute -bottom-40 left-1/3 w-[600px] h-[600px] rounded-full bg-[#e5f7b0]/25 blur-[150px]"></div>
+      {/* Ambient background blur spots (GPU accelerated & mobile optimized) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 transform-gpu">
+        <div className="absolute -top-20 -left-20 w-72 sm:w-[500px] h-72 sm:h-[500px] rounded-full bg-[#d8f47c]/20 blur-3xl sm:blur-[100px]"></div>
+        <div className="absolute -top-16 -right-16 w-72 sm:w-[550px] h-72 sm:h-[550px] rounded-full bg-[#fdd9ce]/25 blur-3xl sm:blur-[100px]"></div>
+        <div className="absolute -bottom-28 left-1/4 w-72 sm:w-[600px] h-72 sm:h-[600px] rounded-full bg-[#e5f7b0]/20 blur-3xl sm:blur-[110px]"></div>
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">

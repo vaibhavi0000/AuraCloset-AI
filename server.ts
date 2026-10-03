@@ -255,6 +255,30 @@ async function startServer() {
     res.json({ success: true, user, token: user?.id });
   });
 
+  // Fast consolidated bootstrap endpoint for instant mobile load (1 single roundtrip)
+  app.get('/api/bootstrap', (req: Request, res: Response) => {
+    try {
+      const userId = getRequestUserId(req);
+      const user = db.users[userId] || Object.values(db.users)[0];
+      const items = db.items.filter((item) => item.userId === userId);
+      const outfitLogs = db.outfitLogs.filter((l) => l.userId === userId);
+      const searchHistory = db.searchHistory
+        .filter((h) => h.userId === userId)
+        .slice(0, 15);
+
+      res.json({
+        success: true,
+        user,
+        items,
+        outfitLogs,
+        searchHistory,
+        token: user?.id,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   // Logout
   app.post('/api/auth/logout', (req: Request, res: Response) => {
     res.json({ success: true, message: 'Logged out successfully' });
@@ -434,15 +458,92 @@ async function startServer() {
     }
   });
 
-  // --- LIVE WEATHER PROXY ENDPOINT ---
+  // Fast in-memory cache for weather to optimize mobile speed
+  const weatherCache = new Map<string, { data: any; expiry: number }>();
+
+  async function reverseGeocodeCoords(lat: number, lon: number): Promise<{ city: string; country: string }> {
+    try {
+      const res = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const detectedCity =
+          data.city ||
+          data.locality ||
+          data.principalSubdivision ||
+          data.countryName ||
+          '';
+        if (detectedCity) {
+          return { city: detectedCity, country: data.countryCode || '' };
+        }
+      }
+    } catch (err) {
+      console.warn('BigDataCloud reverse geocode error:', err);
+    }
+
+    try {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=12`,
+        { headers: { 'User-Agent': 'AuraCloset-App/1.0' } }
+      );
+      if (nomRes.ok) {
+        const nomData = await nomRes.json();
+        const addr = nomData.address || {};
+        const cityName =
+          addr.city ||
+          addr.town ||
+          addr.village ||
+          addr.municipality ||
+          addr.suburb ||
+          addr.county ||
+          addr.state ||
+          '';
+        if (cityName) {
+          return { city: cityName, country: addr.country_code?.toUpperCase() || '' };
+        }
+      }
+    } catch (err) {
+      console.warn('Nominatim reverse geocode error:', err);
+    }
+
+    return { city: '', country: '' };
+  }
+
+  // --- LIVE WEATHER PROXY ENDPOINT WITH CACHING & REVERSE GEOCODING ---
   app.get('/api/weather', async (req: Request, res: Response) => {
     try {
-      let lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
-      let lon = req.query.lon ? parseFloat(req.query.lon as string) : undefined;
-      let city = (req.query.city as string) || '';
+      const latQuery = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+      const lonQuery = req.query.lon ? parseFloat(req.query.lon as string) : undefined;
+      let city = ((req.query.city as string) || '').trim();
       let country = '';
 
-      // 1. If city name provided, geocode it
+      let lat = latQuery;
+      let lon = lonQuery;
+
+      // Check cache key for super-fast mobile responses (< 5ms)
+      const cacheKey =
+        lat !== undefined && lon !== undefined
+          ? `coords_${lat.toFixed(2)}_${lon.toFixed(2)}`
+          : city
+          ? `city_${city.toLowerCase()}`
+          : 'default_weather';
+
+      const cached = weatherCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiry) {
+        return res.json(cached.data);
+      }
+
+      // If lat/lon provided (e.g. from GPS), reverse geocode to get actual city name if not passed
+      if (lat !== undefined && lon !== undefined && !city) {
+        const geoInfo = await reverseGeocodeCoords(lat, lon);
+        if (geoInfo.city) {
+          city = geoInfo.city;
+          country = geoInfo.country;
+        }
+      }
+
+      // 1. If city name provided, geocode to coordinates
       if (city && (lat === undefined || lon === undefined)) {
         try {
           const geoRes = await fetch(
@@ -462,13 +563,23 @@ async function startServer() {
         }
       }
 
-      // 2. If no coords or city, fallback to IP location
+      // 2. If no coords or city, inspect real client IP header (x-forwarded-for)
       if (lat === undefined || lon === undefined) {
         try {
-          const ipRes = await fetch('https://ipwho.is/');
+          const forwarded = req.headers['x-forwarded-for'] as string;
+          const clientIp = forwarded ? forwarded.split(',')[0].trim() : '';
+          const ipUrl =
+            clientIp &&
+            !clientIp.startsWith('127.') &&
+            !clientIp.startsWith('10.') &&
+            !clientIp.startsWith('192.168.')
+              ? `https://ipwho.is/${clientIp}`
+              : 'https://ipwho.is/';
+
+          const ipRes = await fetch(ipUrl);
           if (ipRes.ok) {
             const ipData = await ipRes.json();
-            if (ipData.success) {
+            if (ipData.success && ipData.latitude && ipData.longitude) {
               lat = ipData.latitude;
               lon = ipData.longitude;
               city = ipData.city || ipData.region || 'Current Location';
@@ -512,23 +623,28 @@ async function startServer() {
         return 'Mild & Clear';
       };
 
-      res.json({
+      const result = {
         success: true,
         temp,
         condition: decodeCode(code),
-        city: city || 'My City',
+        city: city || 'Current Location',
         country,
         humidity: current.relative_humidity_2m,
         windSpeed: Math.round(current.wind_speed_10m),
         isLive: true,
-      });
+      };
+
+      // Cache for 10 minutes
+      weatherCache.set(cacheKey, { data: result, expiry: Date.now() + 10 * 60 * 1000 });
+
+      res.json(result);
     } catch (err: any) {
       console.error('Weather error:', err);
       res.json({
         success: true,
         temp: 22,
         condition: 'Mild & Clear',
-        city: (req.query.city as string) || 'My City',
+        city: (req.query.city as string) || 'Current Location',
         isLive: false,
       });
     }

@@ -52,17 +52,19 @@ export const TodayOutfitView: React.FC<TodayOutfitViewProps> = ({
   const [isWearing, setIsWearing] = useState(false);
   const [justWornSuccess, setJustWornSuccess] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const hasInitialProactiveFetchedRef = React.useRef(false);
 
   const availableItems = items.filter((i) => i.isAvailable);
 
-  // Proactive outfit generation on mount or weather change
+  // Proactive outfit generation on mount once items are available (does not repeat on weather sync)
   useEffect(() => {
-    if (availableItems.length >= 2 && recommendations.length === 0) {
+    if (availableItems.length >= 2 && !hasInitialProactiveFetchedRef.current) {
+      hasInitialProactiveFetchedRef.current = true;
       handleGetRecommendations(
         `Suggest my daily outfit for ${weather.city} at ${weather.temp}°C (${weather.condition})`
       );
     }
-  }, [availableItems.length, weather.city, weather.temp]);
+  }, [availableItems.length]);
 
   const handleGetRecommendations = async (userPrompt: string) => {
     if (!userPrompt.trim()) return;
@@ -72,9 +74,14 @@ export const TodayOutfitView: React.FC<TodayOutfitViewProps> = ({
     try {
       await onSaveSearchQuery(userPrompt.trim(), 'stylist');
 
+      const token = localStorage.getItem('aura_token') || user.id || 'usr_me';
       const response = await fetch('/api/recommend-outfits', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'x-user-id': token,
+        },
         body: JSON.stringify({
           query: userPrompt,
           weather,

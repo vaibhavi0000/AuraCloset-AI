@@ -42,19 +42,44 @@ export function decodeWmoWeatherCode(code: number): string {
 }
 
 /**
+ * Get cached live weather for instant 0ms mobile render
+ */
+export function getCachedWeather(): LiveWeatherData | null {
+  try {
+    const raw = sessionStorage.getItem('aura_weather_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.data && Date.now() - parsed.timestamp < 15 * 60 * 1000) {
+        return parsed.data;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function setCachedWeather(data: LiveWeatherData) {
+  try {
+    sessionStorage.setItem(
+      'aura_weather_cache',
+      JSON.stringify({ data, timestamp: Date.now() })
+    );
+  } catch (e) {}
+}
+
+/**
  * Fetch real-time live weather using GPS coordinates
  */
 export async function fetchLiveWeatherByCoords(
   lat: number,
   lon: number
 ): Promise<LiveWeatherData> {
-  // First try backend proxy which avoids CORS and handles reverse geocoding
+  // 1. Backend proxy handles reverse geocoding & Open-Meteo with caching
   try {
     const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
-        return {
+        const weather: LiveWeatherData = {
           temp: data.temp,
           condition: data.condition,
           city: data.city,
@@ -63,13 +88,15 @@ export async function fetchLiveWeatherByCoords(
           windSpeed: data.windSpeed,
           isLiveGps: true,
         };
+        setCachedWeather(weather);
+        return weather;
       }
     }
   } catch (e) {
     console.warn('Backend weather proxy error, falling back to direct Open-Meteo:', e);
   }
 
-  // Direct Open-Meteo fallback
+  // 2. Direct Open-Meteo fallback
   const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m`;
   const weatherRes = await fetch(weatherUrl);
   if (!weatherRes.ok) {
@@ -86,11 +113,11 @@ export async function fetchLiveWeatherByCoords(
     const geoRes = await fetch(geoUrl);
     if (geoRes.ok) {
       const geoJson = await geoRes.json();
-      city = geoJson.city || geoJson.locality || geoJson.principalSubdivision || 'My City';
+      city = geoJson.city || geoJson.locality || geoJson.principalSubdivision || 'My Location';
     }
   } catch (geoErr) {}
 
-  return {
+  const result: LiveWeatherData = {
     temp,
     condition,
     city,
@@ -98,6 +125,8 @@ export async function fetchLiveWeatherByCoords(
     windSpeed: Math.round(current.wind_speed_10m),
     isLiveGps: true,
   };
+  setCachedWeather(result);
+  return result;
 }
 
 /**
@@ -111,7 +140,7 @@ export async function fetchLiveWeatherByCity(
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
-        return {
+        const weather: LiveWeatherData = {
           temp: data.temp,
           condition: data.condition,
           city: data.city,
@@ -120,6 +149,8 @@ export async function fetchLiveWeatherByCity(
           windSpeed: data.windSpeed,
           isLiveGps: false,
         };
+        setCachedWeather(weather);
+        return weather;
       }
     }
   } catch (e) {
@@ -142,7 +173,7 @@ export async function fetchLiveWeatherByCity(
   const weatherJson = await weatherRes.json();
   const current = weatherJson.current;
 
-  return {
+  const result: LiveWeatherData = {
     temp: Math.round(current.temperature_2m),
     condition: decodeWmoWeatherCode(current.weather_code),
     city: name,
@@ -151,13 +182,15 @@ export async function fetchLiveWeatherByCity(
     windSpeed: Math.round(current.wind_speed_10m),
     isLiveGps: false,
   };
+  setCachedWeather(result);
+  return result;
 }
 
 /**
- * Resilient Location Engine:
- * 1. Checks GPS via navigator.geolocation with a 4s timeout.
- * 2. If denied or times out, immediately auto-detects user's real location via IP Geolocation!
- * This guarantees real-time location and weather works everywhere!
+ * High-speed Resilient Location Engine:
+ * 1. Checks GPS via navigator.geolocation with quick low-power network positioning.
+ * 2. If denied or times out, immediately auto-detects user's real location via IP Geolocation.
+ * 3. Never freezes or blocks the mobile UI.
  */
 export function requestGpsLiveWeather(): Promise<LiveWeatherData> {
   return new Promise((resolve) => {
@@ -167,12 +200,12 @@ export function requestGpsLiveWeather(): Promise<LiveWeatherData> {
       if (resolved) return;
       resolved = true;
       try {
-        // Try backend proxy first
+        // Fast backend proxy (uses x-forwarded-for client IP on server)
         const proxyRes = await fetch('/api/weather');
         if (proxyRes.ok) {
           const data = await proxyRes.json();
           if (data.success) {
-            resolve({
+            const weather: LiveWeatherData = {
               temp: data.temp,
               condition: data.condition,
               city: data.city,
@@ -180,32 +213,40 @@ export function requestGpsLiveWeather(): Promise<LiveWeatherData> {
               humidity: data.humidity,
               windSpeed: data.windSpeed,
               isLiveGps: true,
-            });
-            return;
-          }
-        }
-
-        // Direct IP geolocation fallback
-        const ipRes = await fetch('https://ipwho.is/');
-        if (ipRes.ok) {
-          const ipData = await ipRes.json();
-          if (ipData.success) {
-            const weather = await fetchLiveWeatherByCoords(
-              ipData.latitude,
-              ipData.longitude
-            );
-            resolve({
-              ...weather,
-              city: ipData.city || ipData.region || weather.city,
-            });
+            };
+            setCachedWeather(weather);
+            resolve(weather);
             return;
           }
         }
       } catch (err) {
-        console.warn('IP fallback error:', err);
+        console.warn('Backend IP fallback error:', err);
       }
 
-      // Safe default if everything fails
+      try {
+        // Direct browser IP geolocation fallback
+        const ipRes = await fetch('https://ipwho.is/');
+        if (ipRes.ok) {
+          const ipData = await ipRes.json();
+          if (ipData.success && ipData.latitude && ipData.longitude) {
+            const weather = await fetchLiveWeatherByCoords(
+              ipData.latitude,
+              ipData.longitude
+            );
+            const enriched = {
+              ...weather,
+              city: ipData.city || ipData.region || weather.city,
+            };
+            setCachedWeather(enriched);
+            resolve(enriched);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Direct IP fallback error:', err);
+      }
+
+      // Safe default if everything is restricted
       resolve({
         temp: 22,
         condition: 'Mild & Clear',
@@ -219,10 +260,10 @@ export function requestGpsLiveWeather(): Promise<LiveWeatherData> {
       return;
     }
 
-    // Set 4 second timeout before falling back to IP detection
+    // Set 2.5 second timeout for mobile to avoid waiting on slow GPS chips
     const timer = setTimeout(() => {
       fallbackToIp();
-    }, 4000);
+    }, 2500);
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
@@ -243,7 +284,7 @@ export function requestGpsLiveWeather(): Promise<LiveWeatherData> {
         clearTimeout(timer);
         fallbackToIp();
       },
-      { enableHighAccuracy: true, timeout: 4000, maximumAge: 300000 }
+      { enableHighAccuracy: false, timeout: 2500, maximumAge: 600000 }
     );
   });
 }
