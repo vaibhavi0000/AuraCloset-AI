@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Sparkles, Download, Copy, Check, Instagram } from 'lucide-react';
 import { OutfitRecommendation } from '../types/wardrobe';
+import { getCategoryFallbackImage } from '../utils/helpers';
 
 interface ShareOutfitModalProps {
   outfit: OutfitRecommendation;
@@ -65,6 +66,9 @@ export const ShareOutfitModal: React.FC<ShareOutfitModalProps> = ({
                     <img
                       src={item.imageUrl}
                       alt={item.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(item.category);
+                      }}
                       className="w-full h-full object-contain"
                     />
                   </div>

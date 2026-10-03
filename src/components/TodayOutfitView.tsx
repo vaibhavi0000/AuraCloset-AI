@@ -16,7 +16,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { WardrobeItem, OutfitRecommendation, UserProfile, SearchHistoryItem, LiveWeatherData } from '../types/wardrobe';
-import { triggerConfetti, getCostPerWear } from '../utils/helpers';
+import { triggerConfetti, getCostPerWear, getCategoryFallbackImage } from '../utils/helpers';
 
 interface TodayOutfitViewProps {
   items: WardrobeItem[];
@@ -397,6 +397,9 @@ export const TodayOutfitView: React.FC<TodayOutfitViewProps> = ({
                       <img
                         src={item.imageUrl}
                         alt={item.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getCategoryFallbackImage(item.category);
+                        }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
 

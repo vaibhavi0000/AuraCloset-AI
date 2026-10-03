@@ -17,7 +17,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { WardrobeItem, Category, Occasion, SearchHistoryItem } from '../types/wardrobe';
-import { getCostPerWear, formatCurrency } from '../utils/helpers';
+import { getCostPerWear, formatCurrency, getCategoryFallbackImage } from '../utils/helpers';
 
 interface WardrobeGridViewProps {
   items: WardrobeItem[];
@@ -431,6 +431,9 @@ export const WardrobeGridView: React.FC<WardrobeGridViewProps> = ({
                     <img
                       src={item.imageUrl}
                       alt={item.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(item.category);
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
 
@@ -553,6 +556,9 @@ export const WardrobeGridView: React.FC<WardrobeGridViewProps> = ({
                 <img
                   src={detailItem.imageUrl}
                   alt={detailItem.name}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = getCategoryFallbackImage(detailItem.category);
+                  }}
                   className="w-full h-full object-cover"
                 />
               </div>

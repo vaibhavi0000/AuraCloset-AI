@@ -12,7 +12,7 @@ import {
   Shirt,
 } from 'lucide-react';
 import { WardrobeItem, OutfitRecommendation } from '../types/wardrobe';
-import { triggerConfetti } from '../utils/helpers';
+import { triggerConfetti, getCategoryFallbackImage } from '../utils/helpers';
 
 interface MixMatchViewProps {
   items: WardrobeItem[];
@@ -245,7 +245,14 @@ export const MixMatchView: React.FC<MixMatchViewProps> = ({
               <div className="aspect-[3/4] rounded-2xl bg-white p-2 border border-[#d6eab9] flex flex-col justify-between">
                 {studioTop ? (
                   <>
-                    <img src={studioTop.imageUrl} alt={studioTop.name} className="w-full h-32 object-contain rounded-xl" />
+                    <img
+                      src={studioTop.imageUrl}
+                      alt={studioTop.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(studioTop.category);
+                      }}
+                      className="w-full h-32 object-contain rounded-xl"
+                    />
                     <div>
                       <h4 className="text-xs font-bold text-[#1b2b11] truncate">{studioTop.name}</h4>
                       <p className="text-[10px] text-[#556947] truncate">${studioTop.pricePaid}</p>
@@ -274,7 +281,14 @@ export const MixMatchView: React.FC<MixMatchViewProps> = ({
               <div className="aspect-[3/4] rounded-2xl bg-white p-2 border border-[#d6eab9] flex flex-col justify-between">
                 {studioBottom ? (
                   <>
-                    <img src={studioBottom.imageUrl} alt={studioBottom.name} className="w-full h-32 object-contain rounded-xl" />
+                    <img
+                      src={studioBottom.imageUrl}
+                      alt={studioBottom.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(studioBottom.category);
+                      }}
+                      className="w-full h-32 object-contain rounded-xl"
+                    />
                     <div>
                       <h4 className="text-xs font-bold text-[#1b2b11] truncate">{studioBottom.name}</h4>
                       <p className="text-[10px] text-[#556947] truncate">${studioBottom.pricePaid}</p>
@@ -303,7 +317,14 @@ export const MixMatchView: React.FC<MixMatchViewProps> = ({
               <div className="aspect-[3/4] rounded-2xl bg-white p-2 border border-[#d6eab9] flex flex-col justify-between">
                 {studioShoe ? (
                   <>
-                    <img src={studioShoe.imageUrl} alt={studioShoe.name} className="w-full h-32 object-contain rounded-xl" />
+                    <img
+                      src={studioShoe.imageUrl}
+                      alt={studioShoe.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(studioShoe.category);
+                      }}
+                      className="w-full h-32 object-contain rounded-xl"
+                    />
                     <div>
                       <h4 className="text-xs font-bold text-[#1b2b11] truncate">{studioShoe.name}</h4>
                       <p className="text-[10px] text-[#556947] truncate">${studioShoe.pricePaid}</p>
@@ -332,7 +353,14 @@ export const MixMatchView: React.FC<MixMatchViewProps> = ({
               <div className="aspect-[3/4] rounded-2xl bg-white p-2 border border-[#d6eab9] flex flex-col justify-between">
                 {studioAcc ? (
                   <>
-                    <img src={studioAcc.imageUrl} alt={studioAcc.name} className="w-full h-32 object-contain rounded-xl" />
+                    <img
+                      src={studioAcc.imageUrl}
+                      alt={studioAcc.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = getCategoryFallbackImage(studioAcc.category);
+                      }}
+                      className="w-full h-32 object-contain rounded-xl"
+                    />
                     <div>
                       <h4 className="text-xs font-bold text-[#1b2b11] truncate">{studioAcc.name}</h4>
                       <p className="text-[10px] text-[#556947] truncate">${studioAcc.pricePaid}</p>
@@ -423,6 +451,9 @@ export const MixMatchView: React.FC<MixMatchViewProps> = ({
                         <img
                           src={item.imageUrl}
                           alt={item.name}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = getCategoryFallbackImage(item.category);
+                          }}
                           className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
                         />
                       </div>
